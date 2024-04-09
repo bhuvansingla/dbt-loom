@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from dbt_loom.clients.az_blob import AzureClient, AzureReferenceConfig
 from dbt_loom.clients.dbt_cloud import DbtCloud, DbtCloudReferenceConfig
 from dbt_loom.clients.gcs import GCSClient, GCSReferenceConfig
+from dbt_loom.clients.paradime import ParadimeClient, ParadimeReferenceConfig
 from dbt_loom.clients.s3 import S3Client, S3ReferenceConfig
 from dbt_loom.config import (
     FileReferenceConfig,
@@ -44,6 +45,7 @@ class ManifestLoader:
     def __init__(self):
         self.loading_functions = {
             ManifestReferenceType.file: self.load_from_local_filesystem,
+            ManifestReferenceType.paradime: self.load_from_paradime,
             ManifestReferenceType.dbt_cloud: self.load_from_dbt_cloud,
             ManifestReferenceType.gcs: self.load_from_gcs,
             ManifestReferenceType.s3: self.load_from_s3,
@@ -57,6 +59,19 @@ class ManifestLoader:
             raise LoomConfigurationError(f"The path `{config.path}` does not exist.")
 
         return json.load(open(config.path))
+
+    @staticmethod
+    def load_from_paradime(config: ParadimeReferenceConfig) -> Dict:
+        """Load a manifest dictionary from Paradime."""
+        paradime_client = ParadimeClient(
+            schedule_name=config.schedule_name,
+            api_key=config.api_key,
+            api_secret=config.api_secret,
+            api_endpoint=config.api_endpoint,
+            command_index=config.command_index,
+        )
+
+        return paradime_client.load_manifest()
 
     @staticmethod
     def load_from_dbt_cloud(config: DbtCloudReferenceConfig) -> Dict:
