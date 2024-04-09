@@ -20,8 +20,10 @@ flowchart LR
 
     files[Local Files]:::background
     object_storage[Object Storage]:::background
+    paradime_api[Paradime APIs]:::background
     discovery_api[dbt Cloud APIs]:::background
 
+    paradime_api --> proprietary_plugin
     discovery_api --> proprietary_plugin
     files --> proprietary_plugin
     object_storage --> proprietary_plugin
@@ -35,6 +37,7 @@ dbt-loom currently supports obtaining model definitions from:
 
 - Local manifest files
 - dbt Cloud
+- Paradime
 - GCS
 - S3-compatible object storage services
 - Azure Storage
@@ -84,6 +87,30 @@ manifests:
       step_id: <JOB STEP>
       # If your job generates multiple artifacts, you can set the step from
       # which to fetch artifacts. Defaults to the last step.
+```
+
+### Using Paradime as an artifact source
+
+You can use dbt-loom to fetch manifest files from Paradime by setting up a `paradime` manifest in your `dbt-loom` config, and setting the `PARADIME_API_KEY`, `PARADIME_API_SECRET`, and `PARADIME_API_ENDPOINT` environment variables in your execution environment.
+
+```yaml
+manifests:
+  - name: project_name
+    type: paradime
+    config:
+      # The schedule name you'd like to fetch the artifacts from.
+      schedule_name: <SCHEDULE NAME>
+
+      # The Paradime workspace's API key, secret, and endpoint.
+      # It is highly recommended to store these in environment variables and reference them here.
+      # These are optional if you have the `PARADIME_API_KEY`, `PARADIME_API_SECRET`, and `PARADIME_API_ENDPOINT` environment variables set.
+      api_key: <PARADIME WORKSPACE API KEY>
+      api_secret: <PARADIME WORKSPACE API SECRET>
+      api_endpoint: <PARADIME WORKSPACE API ENDPOINT>
+
+      # If your job generates multiple artifacts, you can set the command index from
+      # which to fetch artifacts. Defaults to searching from the last to the first command.
+      command_index: <COMMAND INDEX>
 ```
 
 ### Using an S3-compatible object store as an artifact source

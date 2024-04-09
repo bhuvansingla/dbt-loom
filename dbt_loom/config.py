@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from dbt_loom.clients.az_blob import AzureReferenceConfig
 from dbt_loom.clients.dbt_cloud import DbtCloudReferenceConfig
 from dbt_loom.clients.gcs import GCSReferenceConfig
+from dbt_loom.clients.paradime import ParadimeReferenceConfig
 from dbt_loom.clients.s3 import S3ReferenceConfig
 
 
@@ -14,6 +15,7 @@ class ManifestReferenceType(str, Enum):
     """Type of ManifestReference"""
 
     file = "file"
+    paradime = "paradime"
     dbt_cloud = "dbt_cloud"
     gcs = "gcs"
     s3 = "s3"
@@ -33,6 +35,7 @@ class ManifestReference(BaseModel):
     type: ManifestReferenceType
     config: Union[
         FileReferenceConfig,
+        ParadimeReferenceConfig,
         DbtCloudReferenceConfig,
         GCSReferenceConfig,
         S3ReferenceConfig,
