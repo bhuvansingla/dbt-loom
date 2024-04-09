@@ -1398,20 +1398,20 @@ files = [
 
 [[package]]
 name = "paradime-io"
-version = "4.1.0"
+version = "4.1.1"
 description = "Paradime - Python SDK"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "paradime_io-4.1.0-py3-none-any.whl", hash = "sha256:ec264a292547594bc45304d54af9d582193ae8c6c43251b55c1a7881ad533828"},
-    {file = "paradime_io-4.1.0.tar.gz", hash = "sha256:b5180f52bdf0c55dd9ce6b964706f55bf55c3d22eb8e768112aa92c591fd81c9"},
+    {file = "paradime_io-4.1.1-py3-none-any.whl", hash = "sha256:df4c7ab2af43eade2a15d3a9a801577545b5eae453280624de2292668355dd67"},
+    {file = "paradime_io-4.1.1.tar.gz", hash = "sha256:e8b03c2e1ffea4920c0190a9330f96e2c34d87a3857e842c9201f19ee5bc9862"},
 ]
 
 [package.dependencies]
-click = ">=8.1.7,<9.0.0"
+click = ">=8.1.0,<9.0.0"
 croniter = ">=2.0.2,<3.0.0"
-pydantic = "1.10.14"
-python-dotenv = ">=1.0.1,<2.0.0"
+pydantic = ">=1.10.0,<2.0.0"
+python-dotenv = ">=1.0.0,<2.0.0"
 pyyaml = ">=6.0.1,<7.0.0"
 requests = ">=2.31.0,<3.0.0"
 
@@ -2177,4 +2177,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<4.0"
-content-hash = "5d82d4fba96dec6549a0288b640ee07962b6637e5727c20ec273210305bb7616"
+content-hash = "33a0624a8c93a4d740df7a58da1545ba181696354b13e9c6e73eca5e64874a1e"
