@@ -64,7 +64,7 @@ manifests:
 ```
 
 By default, `dbt-loom` will look for `dbt_loom.config.yml` in your working directory. You can also set the
-`DBT_LOOM_CONFIG_PATH` environment variable.
+`DBT_LOOM_CONFIG` environment variable.
 
 ### Using dbt Cloud as an artifact source
 
@@ -188,6 +188,20 @@ manifests:
       project_id: ${GCP_PROJECT}
       bucket_name: ${GCP_BUCKET}
       object_name: ${MANIFEST_PATH}
+```
+
+### Gzipped files
+
+`dbt-loom` natively supports decompressing gzipped manifest files. This is useful to reduce object storage size and to minimize loading times when reading manifests from object storage. Compressed file detection is triggered when the file path for the manifest is suffixed
+with `.gz`.
+
+```yaml
+manifests:
+  - name: revenue
+    type: s3
+    config:
+      bucket_name: example_bucket_name
+      object_name: manifest.json.gz
 ```
 
 ## How does it work?
