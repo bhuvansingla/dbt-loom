@@ -1,5 +1,6 @@
 import datetime
 import json
+import gzip
 from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field, validator
@@ -42,6 +43,7 @@ class ManifestNode(BaseModel):
     latest_version: Optional[str] = None
     deprecation_date: Optional[datetime.datetime] = None
     access: Optional[str] = "protected"
+    group: Optional[str] = None
     generated_at: datetime.datetime = Field(default_factory=datetime.datetime.utcnow)
     depends_on: Optional[DependsOn] = None
     depends_on_nodes: List[str] = Field(default_factory=list)
@@ -81,8 +83,12 @@ class ManifestLoader:
         """Load a manifest dictionary from a local file"""
         if not config.path.exists():
             raise LoomConfigurationError(f"The path `{config.path}` does not exist.")
-
-        return json.load(open(config.path))
+        
+        if config.path.suffix == '.gz':
+            with gzip.open(config.path, 'rt') as file:
+                return json.load(file)
+        else:
+            return json.load(open(config.path))
 
     @staticmethod
     def load_from_paradime(config: ParadimeReferenceConfig) -> Dict:
