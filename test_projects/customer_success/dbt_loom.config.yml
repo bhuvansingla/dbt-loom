@@ -1,5 +1,7 @@
 manifests:
-  - name: revenue
+  - name: potato
     type: file
     config:
       path: ../revenue/target/manifest.json
+    excluded_packages:
+      - dbt_project_evaluator

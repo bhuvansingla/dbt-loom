@@ -46,6 +46,11 @@ def test_dbt_core_runs_loom_plugin():
         "revenue.orders.v2",
     }
 
+    # Excluded packages do not get injected and loaded into a manifest.
+    assert not any(["dbt_project_evaluator" in item for item in output.result])
+
+    os.chdir(starting_path)
+
     assert set(output.result).issuperset(
         subset
     ), "The child project is missing expected nodes. Check that injection still works."
@@ -88,6 +93,8 @@ def test_dbt_loom_injects_dependencies():
 
     path.unlink()
 
+    os.chdir(starting_path)
+
     # Make sure nothing failed
     assert isinstance(output.exception, dbt.exceptions.DbtReferenceError)
 
@@ -129,5 +136,29 @@ def test_dbt_loom_injects_groups():
 
     path.unlink()
 
+    os.chdir(starting_path)
+
     # Make sure nothing failed
     assert isinstance(output.exception, dbt.exceptions.DbtReferenceError)
+
+
+def test_dbt_core_telemetry_blocking():
+    """Verify that dbt-loom prevents telemetry about itself from being sent."""
+    import shutil
+
+    runner = dbtRunner()
+
+    # Compile the revenue project
+
+    os.chdir(f"{starting_path}/test_projects/revenue")
+    runner.invoke(["clean"])
+    runner.invoke(["deps"])
+    shutil.rmtree("logs")
+    runner.invoke(["compile"])
+
+    # Check that no plugin events were sent. This is important to verify that
+    # telemetry blocking is working.
+    with open("logs/dbt.log") as log_file:
+        assert "plugin_get_nodes" not in log_file.read()
+
+    os.chdir(starting_path)
