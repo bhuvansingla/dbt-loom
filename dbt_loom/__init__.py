@@ -92,12 +92,7 @@ def convert_model_nodes_to_model_node_args(
         unique_id: LoomModelNodeArgs(
             schema=node.schema_name,
             identifier=node.identifier,
-            **(
-                # Small bit of logic to support both pydantic 2 and pydantic 1
-                node.model_dump(exclude={"schema_name", "depends_on", "node_config"})  # type: ignore
-                if hasattr(node, "model_dump")
-                else node.dict(exclude={"schema_name", "depends_on", "node_config"})
-            ),
+            **(node.dump()),
         )
         for unique_id, node in selected_nodes.items()
         if node is not None
@@ -119,7 +114,7 @@ class dbtLoom(dbtPlugin):
     """
 
     def __init__(self, project_name: str):
-        # Log the version of dbt-loom being intialized
+        # Log the version of dbt-loom being initialized
         fire_event(
             msg=f'Initializing dbt-loom={importlib.metadata.version("dbt-loom")}'
         )
@@ -134,6 +129,15 @@ class dbtLoom(dbtPlugin):
         self.config: Optional[dbtLoomConfig] = self.read_config(configuration_path)
         self.models: Dict[str, LoomModelNodeArgs] = {}
 
+        self._patch_ref_protection()
+
+        if not self.config or (self.config and not self.config.enable_telemetry):
+            self._patch_plugin_telemetry()
+
+        super().__init__(project_name)
+
+    def _patch_ref_protection(self) -> None:
+        """Patch out the ref protection functions for proper protections"""
         import dbt.contracts.graph.manifest
 
         fire_event(
@@ -157,7 +161,31 @@ class dbtLoom(dbtPlugin):
             self.model_node_wrapper(dbt.contracts.graph.nodes.ModelNode.from_args)  # type: ignore
         )
 
-        super().__init__(project_name)
+    def _patch_plugin_telemetry(self) -> None:
+        """Patch the plugin telemetry function to prevent tracking of dbt plugins."""
+        import dbt.tracking
+
+        dbt.tracking.track = self.tracking_wrapper(dbt.tracking.track)
+
+    def tracking_wrapper(self, function) -> Callable:
+        """Wrap the telemetry `track` function and return early if we're tracking plugin actions."""
+
+        def outer_function(*args, **kwargs):
+            """Check the context of the snowplow tracker message for references to loom. Return if present."""
+
+            if any(
+                [
+                    self.__class__.__name__ in str(context_item.__dict__)
+                    or "dbt-loom" in str(context_item.__dict__)
+                    or "dbt_loom" in str(context_item.__dict__)
+                    for context_item in kwargs.get("context", [])
+                ]
+            ):
+                return
+
+            return function(*args, **kwargs)
+
+        return outer_function
 
     def model_node_wrapper(self, function) -> Callable:
         """Wrap the ModelNode.from_args function and inject extra properties from the LoomModelNodeArgs."""
@@ -245,10 +273,24 @@ class dbtLoom(dbtPlugin):
             if manifest is None:
                 continue
 
-            self.manifests[manifest_reference.name] = manifest
+            # Find the official project name from the manifest metadata and use that as the manifests key.
+            manifest_name = manifest.get("metadata", {}).get(
+                "project_name", manifest_reference.name
+            )
+            self.manifests[manifest_name] = manifest
 
             selected_nodes = identify_node_subgraph(manifest)
-            self.models.update(convert_model_nodes_to_model_node_args(selected_nodes))
+
+            # Remove nodes from excluded packages.
+            filtered_nodes = {
+                key: value
+                for key, value in selected_nodes.items()
+                if value.package_name not in manifest_reference.excluded_packages
+            }
+
+            loom_nodes = convert_model_nodes_to_model_node_args(filtered_nodes)
+
+            self.models.update(loom_nodes)
 
     @dbt_hook
     def get_nodes(self) -> PluginNodes:

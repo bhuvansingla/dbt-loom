@@ -1,9 +1,13 @@
 import datetime
+from io import BytesIO
 import json
 import gzip
+from pathlib import Path
 from typing import Dict, List, Optional
+from urllib.parse import urlunparse
 
 from pydantic import BaseModel, Field, validator
+import requests
 
 try:
     from dbt.artifacts.resources.types import NodeType
@@ -34,8 +38,9 @@ class ManifestNode(BaseModel):
     """A basic ManifestNode that can be referenced across projects."""
 
     name: str
-    resource_type: NodeType
     package_name: str
+    unique_id: str
+    resource_type: NodeType
     schema_name: str = Field(alias="schema")
     database: Optional[str] = None
     relation_name: Optional[str] = None
@@ -59,6 +64,15 @@ class ManifestNode(BaseModel):
             node for node in depends_on.nodes if node.split(".")[0] not in ("source")
         ]
 
+    @validator("resource_type", always=True)
+    def fix_resource_types(cls, v, values):
+        """If the resource type does not match the unique_id prefix, then rewrite the resource type."""
+
+        node_type = values.get("unique_id").split(".")[0]
+        if v != node_type:
+            return node_type
+        return v
+
     @property
     def identifier(self) -> str:
         if not self.relation_name:
@@ -66,12 +80,28 @@ class ManifestNode(BaseModel):
 
         return self.relation_name.split(".")[-1].replace('"', "").replace("`", "")
 
+    def dump(self) -> Dict:
+        """Dump the ManifestNode to a Dict, with support for pydantic 1 and 2"""
+        exclude_set = {"schema_name", "depends_on", "node_config", "unique_id"}
+        if hasattr(self, "model_dump"):
+            return self.model_dump(exclude=exclude_set)  # type: ignore
+
+        return self.dict(exclude=exclude_set)
+
+
+class UnknownManifestPathType(Exception):
+    """Raised when the ManifestLoader receives a FileReferenceConfig with a path that does not have a known URL scheme."""
+
+
+class InvalidManifestPath(Exception):
+    """Raised when the ManifestLoader receives a FileReferenceConfig with an invalid path."""
+
 
 class ManifestLoader:
     def __init__(self):
         self.loading_functions = {
-            ManifestReferenceType.file: self.load_from_local_filesystem,
             ManifestReferenceType.paradime: self.load_from_paradime,
+            ManifestReferenceType.file: self.load_from_path,
             ManifestReferenceType.dbt_cloud: self.load_from_dbt_cloud,
             ManifestReferenceType.gcs: self.load_from_gcs,
             ManifestReferenceType.s3: self.load_from_s3,
@@ -79,16 +109,58 @@ class ManifestLoader:
         }
 
     @staticmethod
+    def load_from_path(config: FileReferenceConfig) -> Dict:
+        """
+        Load a manifest dictionary based on a FileReferenceConfig. This config's
+        path can point to either a local file or a URL to a remote location.
+        """
+
+        if config.path.scheme in ("http", "https"):
+            return ManifestLoader.load_from_http(config)
+
+        if config.path.scheme in ("file"):
+            return ManifestLoader.load_from_local_filesystem(config)
+
+        raise UnknownManifestPathType()
+
+    @staticmethod
     def load_from_local_filesystem(config: FileReferenceConfig) -> Dict:
         """Load a manifest dictionary from a local file"""
-        if not config.path.exists():
-            raise LoomConfigurationError(f"The path `{config.path}` does not exist.")
-        
-        if config.path.suffix == '.gz':
-            with gzip.open(config.path, 'rt') as file:
+
+        if not config.path.path:
+            raise InvalidManifestPath()
+
+        file_path = Path(config.path.path)
+
+        if not file_path.exists():
+            raise LoomConfigurationError(f"The path `{file_path}` does not exist.")
+
+        if file_path.suffix == ".gz":
+            with gzip.open(file_path, "rt") as file:
                 return json.load(file)
-        else:
-            return json.load(open(config.path))
+
+        return json.load(open(file_path))
+
+    @staticmethod
+    def load_from_http(config: FileReferenceConfig) -> Dict:
+        """Load a manifest dictionary from a local file"""
+
+        if not config.path.path:
+            raise InvalidManifestPath()
+
+        response = requests.get(urlunparse(config.path), stream=True)
+        response.raise_for_status()  # Check for request errors
+
+        # Check for compression on the file. If compressed, store it in a buffer
+        # and decompress it.
+        if (
+            config.path.path.endswith(".gz")
+            or response.headers.get("Content-Encoding") == "gzip"
+        ):
+            with gzip.GzipFile(fileobj=BytesIO(response.content)) as gz_file:
+                return json.load(gz_file)
+
+        return response.json()
 
     @staticmethod
     def load_from_paradime(config: ParadimeReferenceConfig) -> Dict:
