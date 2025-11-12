@@ -58,10 +58,12 @@ def identify_node_subgraph(manifest) -> Dict[str, ManifestNode]:
     """
     Identify all nodes that should be selected from the manifest, and return ManifestNodes.
     """
+    
+    manifest_package_name = manifest.get("metadata", {}).get("project_name")
 
     output = {}
 
-    # We're going to temporarily allow all nodes here.
+    # We're going to allow only public models that belong to the manifest's package to be injected.
     for unique_id in manifest["nodes"].keys():
         if unique_id.split(".")[0] in (NodeType.Test.value, NodeType.Macro.value):
             continue
@@ -73,6 +75,9 @@ def identify_node_subgraph(manifest) -> Dict[str, ManifestNode]:
 
         if node.get("access") is None:
             node["access"] = node.get("config", {}).get("access", "protected")
+
+        if not (node.get("access") == "public" and node.get("package_name") == manifest_package_name):
+            continue
 
         # Versions may be floats or strings. Standardize on strings for compatibility.
         for key in ("version", "latest_version"):
@@ -88,15 +93,26 @@ def convert_model_nodes_to_model_node_args(
     selected_nodes: Dict[str, ManifestNode],
 ) -> Dict[str, LoomModelNodeArgs]:
     """Generate a dictionary of ModelNodeArgs based on a dictionary of ModelNodes"""
-    return {
-        unique_id: LoomModelNodeArgs(
+    transformed_model_node_args = {}
+    
+    for unique_id, node in selected_nodes.items():
+        if node is None:
+            continue
+        
+        node_data = node.dump()
+        # Remove depends_on since injected models are already materialized
+        # and don't need to be built from their upstream dependencies and also
+        # not all of them will be available in the current project.
+        node_data.pop('depends_on', None)
+        node_data.pop('depends_on_nodes', None)
+        
+        transformed_model_node_args[unique_id] = LoomModelNodeArgs(
             schema=node.schema_name,
             identifier=node.identifier,
-            **(node.dump()),
+            **node_data,
         )
-        for unique_id, node in selected_nodes.items()
-        if node is not None
-    }
+    
+    return transformed_model_node_args
 
 
 @dataclass
