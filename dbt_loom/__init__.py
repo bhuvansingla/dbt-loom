@@ -119,6 +119,7 @@ def convert_model_nodes_to_model_node_args(
 class LoomRunnableConfig:
     """A shim class to allow is_invalid_*_ref functions to correctly handle access for loom-injected models."""
 
+    project_name: str
     restrict_access: bool = True
     vars: VarProvider = VarProvider(vars={})
 
@@ -236,7 +237,9 @@ class dbtLoom(dbtPlugin):
                     if manifest_name in dependencies:
                         continue
 
-                    dependencies[manifest_name] = LoomRunnableConfig()
+                    dependencies[manifest_name] = LoomRunnableConfig(
+                        project_name=manifest_name
+                    )
 
             return function(inner_self, node, target_model, dependencies)
 
