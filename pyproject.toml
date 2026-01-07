@@ -6,7 +6,7 @@ authors = [{ name = "Nicholas Yager", email = "yager@nicholasyager.com" }]
 requires-python = ">=3.9,<4.0"
 readme = "README.md"
 dependencies = [
-    "dbt-core>=1.6.0,<1.11.0",
+    "dbt-core>=1.6.0,<1.12.0",
     "requests>=2.31.0,<3",
     "google-cloud-storage>=2.13.0,<3",
     "boto3>=1.28.84,<2",
